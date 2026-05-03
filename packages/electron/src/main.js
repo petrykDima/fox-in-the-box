@@ -280,21 +280,58 @@ async function main() {
 // ─── macOS Docker install (kept separate) ────────────────────────────────────
 
 async function installDockerMac() {
+  const fs = require('fs');
+
+  // Installed but daemon down — avoid brew reinstall (often fails mid-cask with confusing logs).
+  if (fs.existsSync('/Applications/Docker.app')) {
+    showProgress('Starting Docker Desktop…');
+    spawn('open', ['-a', 'Docker'], { detached: true, stdio: 'ignore' }).unref();
+    const up = await _waitForDaemon(
+      () => docker.isDaemonRunning(),
+      180_000,
+      3_000,
+      Date.now,
+      (t) => new Promise((r) => setTimeout(r, t)),
+      showProgress,
+    );
+    if (up) return;
+  }
+
+  const hasApp = fs.existsSync('/Applications/Docker.app');
   const { response } = await dialog.showMessageBox({
     type: 'question',
-    buttons: ['Install Docker', 'Cancel'],
+    buttons: ['Continue', 'Cancel'],
     defaultId: 0,
     cancelId: 1,
-    title: 'Docker not found',
-    message: 'Docker Desktop is required but was not found.',
-    detail: 'Fox in the Box will install it via Homebrew.\n\nThis may take a few minutes.',
+    title: hasApp ? 'Docker is not running' : 'Docker not found',
+    message: hasApp
+      ? 'Docker Desktop is installed but the engine is not responding.'
+      : 'Docker Desktop is required but was not found.',
+    detail: hasApp
+      ? 'Fox in the Box can try to repair or upgrade via Homebrew. Quit Docker from the menu bar first if it is stuck.\n\nThis may take a few minutes.'
+      : 'Fox in the Box will install it via Homebrew.\n\nThis may take a few minutes.',
   });
 
   if (response !== 0) throw new Error('User cancelled Docker installation');
 
   log.info('Installing Docker via Homebrew');
   showProgress('Installing Docker Desktop…');
-  await runCommandVerbose('brew install --cask docker', {}, showProgress);
+  try {
+    await runCommandVerbose(
+      'brew install --cask docker',
+      { env: { ...process.env, NONINTERACTIVE: '1' } },
+      showProgress,
+    );
+  } catch (err) {
+    throw new Error(
+      'Homebrew could not finish installing Docker Desktop.\n\n' +
+        'Try: quit Docker completely, then in Terminal run:\n' +
+        '  brew install --cask docker\n\n' +
+        'Or install from https://www.docker.com/products/docker-desktop/\n\n' +
+        '— Homebrew log (last lines) —\n' +
+        (err.message || String(err)),
+    );
+  }
   log.info('Docker install command finished — waiting 5s for daemon');
   await new Promise((r) => setTimeout(r, 5000));
 }

@@ -29,13 +29,15 @@ function runCommandVerbose(cmd, opts = {}, showProgress = null) {
   return new Promise((resolve, reject) => {
     const child = exec(cmd, { ...opts, windowsHide: true });
     let stdout = '';
-    let lastLine = '';
+    let combined = '';
 
     const onData = (data) => {
-      stdout += data;
-      const lines = data.toString().split(/\r?\n/).filter(l => l.trim());
+      const chunk = data.toString();
+      stdout += chunk;
+      combined += chunk;
+      const lines = chunk.split(/\r?\n/).filter((l) => l.trim());
       if (lines.length && showProgress) {
-        lastLine = lines[lines.length - 1].trim();
+        const lastLine = lines[lines.length - 1].trim();
         // Trim winget progress bars and long lines
         const display = lastLine.replace(/[█▌▐▓░]+/g, '').trim().slice(0, 80);
         if (display) showProgress(display);
@@ -46,8 +48,13 @@ function runCommandVerbose(cmd, opts = {}, showProgress = null) {
     child.stderr && child.stderr.on('data', onData);
 
     child.on('close', (code) => {
-      if (code !== 0) reject(new Error(lastLine || `exited with code ${code}`));
-      else resolve(stdout);
+      if (code !== 0) {
+        const lines = combined.trim().split(/\r?\n/).filter(Boolean);
+        const tail = lines.slice(-20).join('\n').trim();
+        reject(new Error(tail || `exited with code ${code}`));
+      } else {
+        resolve(stdout);
+      }
     });
   });
 }

@@ -13,6 +13,7 @@ const updateWindow                    = require('./update-window');
 const {
   waitForDaemon:          _waitForDaemon,
   ensureDockerWindows:    _ensureDockerWindows,
+  runCommandVerbose,
 } = require('./startup');
 
 // Prevent multiple instances
@@ -292,7 +293,8 @@ async function installDockerMac() {
   if (response !== 0) throw new Error('User cancelled Docker installation');
 
   log.info('Installing Docker via Homebrew');
-  await runCommand('brew install --cask docker');
+  showProgress('Installing Docker Desktop…');
+  await runCommandVerbose('brew install --cask docker', {}, showProgress);
   log.info('Docker install command finished — waiting 5s for daemon');
   await new Promise((r) => setTimeout(r, 5000));
 }

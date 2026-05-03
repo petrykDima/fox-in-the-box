@@ -9,12 +9,14 @@
   },
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
+    "build": "electron-builder --publish never",
+    "build:publish": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "test": "jest --testPathPattern=tests/electron"
   },
   "dependencies": {
+    "docker-modem": "^5.0.7",
     "dockerode": "^4.0.2",
     "electron-log": "^5.1.2",
     "electron-updater": "^6.3.9"

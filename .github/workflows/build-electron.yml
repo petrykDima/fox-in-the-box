@@ -63,21 +63,42 @@ jobs:
             pnpm install --frozen-lockfile
           fi
 
+      # macOS: GitHub Secrets cannot safely hold raw binary .p12 — store base64 of the file
+      # (same bytes as exporting "Developer ID Application" cert to .p12 from Keychain Access).
+      # Optional: if the secret exceeds GitHub's ~48KB limit, host the .p12 privately and set
+      # MACOS_CSC_P12_BASE64 to empty; instead set CSC_LINK to an https:// URL (see electron-builder docs).
       - name: Build Electron app
         working-directory: packages/electron
         shell: bash
-        run: pnpm build
         env:
-          # No code signing cert for v0.1 — CSC_IDENTITY_AUTO_DISCOVERY=false tells
-          # electron-builder to skip signing entirely rather than error on missing/empty cert.
-          # Remove this line and set WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD secrets when ready to sign.
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          # macOS code signing (set in repo secrets)
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # GitHub token for electron-updater publish config
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MACOS_CSC_P12_BASE64: ${{ secrets.MACOS_CSC_P12_BASE64 }}
+          MACOS_CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+          MACOS_CSC_LINK_URL: ${{ secrets.MACOS_CSC_LINK_URL }}
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            if [[ -n "${MACOS_CSC_LINK_URL:-}" ]]; then
+              export CSC_LINK="${MACOS_CSC_LINK_URL}"
+              export CSC_KEY_PASSWORD="${MACOS_CSC_KEY_PASSWORD}"
+            elif [[ -n "${MACOS_CSC_P12_BASE64:-}" ]]; then
+              b64="${MACOS_CSC_P12_BASE64}"
+              if [[ "$b64" == data:* ]]; then
+                b64="${b64#*,}"
+              fi
+              printf '%s' "$b64" | base64 -d > "${RUNNER_TEMP}/certificate.p12"
+              chmod 600 "${RUNNER_TEMP}/certificate.p12"
+              export CSC_LINK="file://${RUNNER_TEMP}/certificate.p12"
+              export CSC_KEY_PASSWORD="${MACOS_CSC_KEY_PASSWORD}"
+            else
+              export CSC_IDENTITY_AUTO_DISCOVERY=false
+            fi
+          fi
+          pnpm build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

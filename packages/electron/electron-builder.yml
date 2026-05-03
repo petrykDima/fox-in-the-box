@@ -38,8 +38,8 @@ mac:
         - x64
         - arm64
   artifactName: "fox-in-the-box-${version}-${arch}-mac.dmg"
-  # Code signing: set APPLE_TEAM_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_ID env vars in CI
-  # identity is auto-detected from keychain when env vars are present
+  # Signing: CSC_LINK + CSC_KEY_PASSWORD, or Keychain locally. APPLE_* env vars enable notarization in CI.
+  notarize: true
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: assets/entitlements.mac.plist
